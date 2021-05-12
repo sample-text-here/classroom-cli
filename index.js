@@ -1,3 +1,5 @@
+console.log("be patient...");
+
 const fs = require("fs").promises;
 const path = require("path");
 const inquirer = require("inquirer");
@@ -7,6 +9,7 @@ const creds = require("./credentials.json");
 const color = (text, code) => `\x1b[${code}m${text}\x1b[0m`;
 const open = (what) => spawn("xdg-open", [what], { detatched: true }).unref();
 
+const spinChars = "⣾⣽⣻⢿⡿⣟⣯⣷";
 const SCOPES = [
 	"https://www.googleapis.com/auth/classroom.courses.readonly",
 	"https://www.googleapis.com/auth/classroom.coursework.me",
@@ -66,30 +69,21 @@ class CLI {
 	async listItems(courseId) {
 		const peek= (arr) => arr[arr.length - 1];
 		const fetch = (which, pageSize) => this.classroom.courses[which].list({ courseId, pageSize });
-		const grab = async (which, pageSize) => (await fetch(which, pageSize)).data[which];
+		const grab = async (which, pageSize) => (await fetch(which, pageSize)).data[which] || [];
+		const time = item => Date.parse(item.creationTime);
 
-		const work = (await grab("courseWork", 50)) || [];
-		const announces = (await grab("announcements", 20)) || [];
-		const items = [];
-
-		while(work.length && announces.length) {
-			const workTime = Date.parse(peek(work).creationTime);
-			const announceTime = Date.parse(peek(announces).creationTime);
-			if(workTime < announceTime) {
-				items.push(work.pop());
-			} else {
-				items.push(announces.pop());
-			}
-		}
-		return items.concat(work).concat(announces).reverse();
+		const work = await grab("courseWork", 50);
+		const announces = await grab("announcements", 20);
+		return work.concat(announces).sort((a, b) => time(a) > time(b) ? -1 : 1);
 	}
 }
 
 async function main() {
-	console.log("logging in...");
 	const cli = new CLI();
 	await cli.login(path.join(__dirname, "token.json"));
+	const spinLogin = wait("logging in");
 	const courses = await cli.listClasses();
+	spinLogin();
 	while(true) {
 		const prompt = await inquirer.prompt([{
 			name: "course",
@@ -102,14 +96,17 @@ async function main() {
 			],
 			loop: false,
 		}]);
-		if(!prompt.course) return;
+		if(!prompt.course) break;
 		await course(cli, prompt.course);
 	}
+	console.log("goodbye");
 }
 
 async function course(cli, room) {
 	console.log(room.descriptionHeading);
+	const spinCourseItems = wait("loading");
 	const list = await cli.listItems(room.id);
+	spinCourseItems();
 	while(true) {
 		const which = await inquirer.prompt([{
 			name: "work",
@@ -218,12 +215,13 @@ types.set("application/vnd.google-apps.presentation", ["application/vnd.oasis.op
 types.set("application/vnd.google-apps.drawing", ["image/png", ".png"]);
 
 async function downloadGDrive(drive, id, where) {
-	console.log("\ndownloading...");
+	const loader = wait("downloading...");
 	const [req, ext] = await fetch(id);
 	const dest = await fs.open(where + ext, "w");
 	dest.write(req.data);
 	await dest.close();
 	open(where + ext);
+	loader();
 	console.log("done!");
 
 	async function fetch(fileId) {
@@ -234,6 +232,18 @@ async function downloadGDrive(drive, id, where) {
 		} else {
 			return [await drive.files.get({ fileId, alt: "media" }), ""];
 		}
+	}
+}
+
+function wait(text) {
+	let i = 0;
+	const next = () => spinChars[i++ % spinChars.length];
+	const interval = setInterval(() => {
+		process.stdout.write(`\r${next()} ${text}`);
+	}, 100);
+	return (success = true) => {
+		clearInterval(interval);
+		process.stdout.write(`\r${" ".repeat(text.length + 2)}\r`);
 	}
 }
 

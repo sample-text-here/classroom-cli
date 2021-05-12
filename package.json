@@ -1,16 +1,15 @@
 {
-  "name": "classroom",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "googleapis": "39",
-    "inquirer": "^8.0.0"
-  }
+	"name": "classroom-cli",
+	"version": "1.0.0",
+	"description": "google classroom cli",
+	"author": "zestylemonade",
+	"main": "index.js",
+	"scripts": {
+		"start": "node index.js"
+	},
+	"license": "WTFPL",
+	"dependencies": {
+		"googleapis": "39",
+		"inquirer": "^8.0.0"
+	}
 }
